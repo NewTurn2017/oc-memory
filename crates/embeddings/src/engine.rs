@@ -129,11 +129,23 @@ impl EmbeddingEngine {
                 .lock()
                 .map_err(|e| EmbeddingError::Tokenizer(format!("Session lock poisoned: {e}")))?;
 
-            let outputs = session.run(ort::inputs![
-                "input_ids" => input_ids,
-                "attention_mask" => attention_mask,
-                "token_type_ids" => token_type_ids,
-            ])?;
+            let has_token_type_ids = session
+                .inputs()
+                .iter()
+                .any(|input| input.name() == "token_type_ids");
+
+            let outputs = if has_token_type_ids {
+                session.run(ort::inputs![
+                    "input_ids" => input_ids,
+                    "attention_mask" => attention_mask,
+                    "token_type_ids" => token_type_ids,
+                ])?
+            } else {
+                session.run(ort::inputs![
+                    "input_ids" => input_ids,
+                    "attention_mask" => attention_mask,
+                ])?
+            };
 
             // Extract output tensor and copy to owned data
             let output_value = &outputs[0];

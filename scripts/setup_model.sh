@@ -5,6 +5,7 @@
 set -euo pipefail
 
 MODEL_DIR="$HOME/.local/share/oc-memory/models"
+VENV_DIR=".venv-model"
 
 echo "=== oc-memory Model Setup ==="
 echo ""
@@ -29,9 +30,14 @@ if ! command -v python3 &>/dev/null; then
     exit 1
 fi
 
-echo "Installing Python dependencies..."
-pip3 install --quiet "optimum[exporters]" onnxruntime transformers tokenizers
+echo "Creating model venv: $VENV_DIR"
+python3 -m venv "$VENV_DIR"
+
+echo "Activating venv and installing Python dependencies..."
+source "$VENV_DIR/bin/activate"
+python -m pip install -U pip
+python -m pip install --quiet "optimum[onnxruntime]" onnxruntime transformers tokenizers torch
 
 echo ""
-echo "Downloading and converting model..."
-python3 "$(dirname "$0")/download_model.py"
+echo "Downloading model..."
+python "$(dirname "$0")/download_model.py"

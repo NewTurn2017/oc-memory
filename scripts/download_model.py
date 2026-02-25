@@ -1,57 +1,80 @@
 #!/usr/bin/env python3
 """
-Download and convert BGE-m3-ko to ONNX INT8 for oc-memory.
+Prepare ONNX model assets for oc-memory.
+
+Default mode downloads prebuilt INT8 ONNX files (fast, stable).
+Optional mode performs local export/quantization via --convert.
 
 Usage:
-    pip install optimum[exporters] onnxruntime transformers tokenizers
     python scripts/download_model.py
+    python scripts/download_model.py --convert
 
 Output:
     ~/.local/share/oc-memory/models/bge-m3-ko-int8.onnx
     ~/.local/share/oc-memory/models/tokenizer.json
 """
 
-import os
-import sys
-import shutil
-from pathlib import Path
+from __future__ import annotations
 
-MODEL_ID = "dragonkue/BGE-m3-ko"
+import argparse
+import shutil
+import sys
+from pathlib import Path
+from urllib.request import urlretrieve
+
+MODEL_ID_CONVERT = "dragonkue/BGE-m3-ko"
+PREBUILT_MODEL_URL = "https://huggingface.co/Xenova/bge-m3/resolve/main/onnx/model_int8.onnx"
+PREBUILT_TOKENIZER_URL = "https://huggingface.co/Xenova/bge-m3/resolve/main/tokenizer.json"
+
 OUTPUT_DIR = Path.home() / ".local" / "share" / "oc-memory" / "models"
 TEMP_DIR = Path("/tmp/oc-memory-model-export")
 
 
-def check_dependencies():
-    missing = []
-    try:
-        import optimum
-    except ImportError:
-        missing.append("optimum[exporters]")
-    try:
-        import onnxruntime
-    except ImportError:
-        missing.append("onnxruntime")
-    try:
-        import transformers
-    except ImportError:
-        missing.append("transformers")
-    try:
-        import tokenizers
-    except ImportError:
-        missing.append("tokenizers")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Prepare model files for oc-memory")
+    parser.add_argument(
+        "--convert",
+        action="store_true",
+        help="Export and quantize from Hugging Face model locally instead of downloading prebuilt files",
+    )
+    return parser.parse_args()
+
+
+def require_imports(modules: list[str]) -> None:
+    missing: list[str] = []
+    for module in modules:
+        try:
+            __import__(module)
+        except ImportError:
+            missing.append(module)
 
     if missing:
-        print(f"Missing dependencies: {', '.join(missing)}")
-        print(f"Install with: pip install {' '.join(missing)}")
+        print(f"Missing Python modules: {', '.join(missing)}")
+        print("Install dependencies with scripts/setup_model.sh")
         sys.exit(1)
 
 
-def main():
-    check_dependencies()
+def download_prebuilt() -> tuple[Path, Path]:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    dst_model = OUTPUT_DIR / "bge-m3-ko-int8.onnx"
+    dst_tokenizer = OUTPUT_DIR / "tokenizer.json"
 
+    print("[1/3] Downloading prebuilt INT8 model...")
+    urlretrieve(PREBUILT_MODEL_URL, dst_model)
+    print(f"  -> {dst_model}")
+
+    print("[2/3] Downloading tokenizer...")
+    urlretrieve(PREBUILT_TOKENIZER_URL, dst_tokenizer)
+    print(f"  -> {dst_tokenizer}")
+
+    return dst_model, dst_tokenizer
+
+
+def convert_locally() -> tuple[Path, Path]:
+    require_imports(["optimum", "onnxruntime", "transformers", "tokenizers"])
     from optimum.onnxruntime import ORTModelForFeatureExtraction
-    from optimum.onnxruntime.configuration import AutoQuantizationConfig
     from optimum.onnxruntime import ORTQuantizer
+    from optimum.onnxruntime.configuration import AutoQuantizationConfig
     from transformers import AutoTokenizer
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -60,82 +83,75 @@ def main():
     onnx_export_dir = TEMP_DIR / "onnx-fp32"
     onnx_int8_dir = TEMP_DIR / "onnx-int8"
 
-    # Step 1: Export to ONNX (FP32)
-    print(f"\n[1/4] Exporting {MODEL_ID} to ONNX (FP32)...")
-    model = ORTModelForFeatureExtraction.from_pretrained(
-        MODEL_ID, export=True
-    )
+    print(f"[1/4] Exporting {MODEL_ID_CONVERT} to ONNX (FP32)...")
+    model = ORTModelForFeatureExtraction.from_pretrained(MODEL_ID_CONVERT, export=True)
     model.save_pretrained(str(onnx_export_dir))
-
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID_CONVERT)
     tokenizer.save_pretrained(str(onnx_export_dir))
-    print(f"  -> Saved FP32 ONNX to {onnx_export_dir}")
 
-    # Step 2: Quantize to INT8 (dynamic quantization)
-    print("\n[2/4] Quantizing to INT8 (dynamic quantization)...")
+    print("[2/4] Quantizing to INT8...")
     quantizer = ORTQuantizer.from_pretrained(str(onnx_export_dir))
     qconfig = AutoQuantizationConfig.avx2(is_static=False, per_channel=True)
-
     onnx_int8_dir.mkdir(parents=True, exist_ok=True)
     quantizer.quantize(save_dir=str(onnx_int8_dir), quantization_config=qconfig)
-    print(f"  -> Saved INT8 ONNX to {onnx_int8_dir}")
 
-    # Step 3: Copy final files
-    print(f"\n[3/4] Copying model files to {OUTPUT_DIR}...")
-
-    # Find the quantized model file
+    print("[3/4] Copying final model files...")
     int8_model = onnx_int8_dir / "model_quantized.onnx"
     if not int8_model.exists():
-        # Try alternative name
-        int8_model = onnx_int8_dir / "model.onnx"
+        alt_model = onnx_int8_dir / "model.onnx"
+        int8_model = alt_model if alt_model.exists() else int8_model
     if not int8_model.exists():
-        # List what's there
-        files = list(onnx_int8_dir.glob("*.onnx"))
-        if files:
-            int8_model = files[0]
-        else:
-            print("ERROR: No ONNX file found after quantization!")
+        model_candidates = list(onnx_int8_dir.glob("*.onnx"))
+        if not model_candidates:
+            print("ERROR: No ONNX file found after quantization")
             sys.exit(1)
+        int8_model = model_candidates[0]
 
-    dst_model = OUTPUT_DIR / "bge-m3-ko-int8.onnx"
-    shutil.copy2(str(int8_model), str(dst_model))
-    print(f"  -> Model: {dst_model}")
-
-    # Copy tokenizer.json
     src_tokenizer = onnx_export_dir / "tokenizer.json"
     if not src_tokenizer.exists():
-        # tokenizers library might have saved it differently
-        src_tokenizer = onnx_export_dir / "tokenizer.json"
-    dst_tokenizer = OUTPUT_DIR / "tokenizer.json"
-    shutil.copy2(str(src_tokenizer), str(dst_tokenizer))
-    print(f"  -> Tokenizer: {dst_tokenizer}")
+        print("ERROR: tokenizer.json not found after export")
+        sys.exit(1)
 
-    # Step 4: Verify & report sizes
-    print("\n[4/4] Verification:")
-    model_size_mb = dst_model.stat().st_size / (1024 * 1024)
-    tokenizer_size_kb = dst_tokenizer.stat().st_size / 1024
+    dst_model = OUTPUT_DIR / "bge-m3-ko-int8.onnx"
+    dst_tokenizer = OUTPUT_DIR / "tokenizer.json"
+    shutil.copy2(str(int8_model), str(dst_model))
+    shutil.copy2(str(src_tokenizer), str(dst_tokenizer))
+
+    print("[4/4] Cleaning temporary files...")
+    shutil.rmtree(str(TEMP_DIR), ignore_errors=True)
+
+    return dst_model, dst_tokenizer
+
+
+def verify_model(model_path: Path, tokenizer_path: Path) -> None:
+    require_imports(["onnxruntime"])
+    import onnxruntime as ort
+
+    model_size_mb = model_path.stat().st_size / (1024 * 1024)
+    tokenizer_size_kb = tokenizer_path.stat().st_size / 1024
+    print("Verification:")
     print(f"  Model size: {model_size_mb:.1f} MB")
     print(f"  Tokenizer size: {tokenizer_size_kb:.1f} KB")
 
-    # Quick validation: load model with onnxruntime
-    import onnxruntime as ort
-    session = ort.InferenceSession(str(dst_model))
-    inputs = session.get_inputs()
-    outputs = session.get_outputs()
-    print(f"  Inputs: {[i.name for i in inputs]}")
-    print(f"  Outputs: {[o.name for o in outputs]}")
-    output_shape = outputs[0].shape
-    if len(output_shape) >= 3:
-        print(f"  Output dim: {output_shape[-1]}")
+    session = ort.InferenceSession(str(model_path))
+    input_names = [i.name for i in session.get_inputs()]
+    output_names = [o.name for o in session.get_outputs()]
+    print(f"  Inputs: {input_names}")
+    print(f"  Outputs: {output_names}")
 
-    # Cleanup temp
-    print(f"\nCleaning up temp dir: {TEMP_DIR}")
-    shutil.rmtree(str(TEMP_DIR), ignore_errors=True)
 
-    print(f"\n✅ Done! Model ready at: {OUTPUT_DIR}")
-    print(f"\nTo use:")
-    print(f"  oc-memory-mcp    # MCP server (stdio)")
-    print(f"  oc-memory-server  # REST server (port 6342)")
+def main() -> None:
+    args = parse_args()
+
+    if args.convert:
+        print("Using local conversion mode (--convert)")
+        model_path, tokenizer_path = convert_locally()
+    else:
+        print("Using prebuilt download mode (default)")
+        model_path, tokenizer_path = download_prebuilt()
+
+    verify_model(model_path, tokenizer_path)
+    print(f"\nDone. Model assets are ready in: {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":

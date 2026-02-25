@@ -7,3 +7,4 @@ models/*.json
 !models/.gitkeep
 .env
 .firecrawl/
+.venv-model/

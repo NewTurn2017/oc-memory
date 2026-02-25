@@ -8,10 +8,16 @@ CLAUDE_CONFIG="${CLAUDE_CONFIG:-$HOME/.claude/config.json}"
 SERVICE_NAME="${SERVICE_NAME:-oc-memory.service}"
 OS_NAME="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
+echo "[oc-memory] one-file setup started"
+echo "[oc-memory] expected time: 10-25 minutes (network/model download speed dependent)"
+echo "[oc-memory] major stages: deps -> build -> model -> service -> verification"
+
 if [ "$OS_NAME" = "linux" ] && command -v apt-get >/dev/null 2>&1; then
+  echo "[stage 1/5] installing system packages (linux)"
   apt-get update
   apt-get install -y build-essential pkg-config libssl-dev clang cmake curl python3 python3-venv git
 elif [ "$OS_NAME" = "darwin" ] && command -v brew >/dev/null 2>&1; then
+  echo "[stage 1/5] installing helper packages (macOS)"
   brew install cmake pkg-config openssl
 fi
 
@@ -26,21 +32,25 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 if ! command -v rustup >/dev/null 2>&1; then
+  echo "[stage 1/5] installing rustup"
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 fi
 
 source "$HOME/.cargo/env"
 
 if [ -d "$INSTALL_DIR/.git" ]; then
+  echo "[stage 2/5] updating existing repository: $INSTALL_DIR"
   git -C "$INSTALL_DIR" fetch origin
   git -C "$INSTALL_DIR" checkout main
   git -C "$INSTALL_DIR" pull --ff-only origin main
 else
+  echo "[stage 2/5] cloning repository: $REPO_URL -> $INSTALL_DIR"
   git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 
 cd "$INSTALL_DIR"
 
+echo "[stage 3/5] fetching dependencies and building release binaries"
 cargo fetch
 BUILDRS=$(find "$HOME/.cargo/registry/src" -path '*/lindera-ko-dic-*/build.rs' | head -1 || true)
 if [ -n "$BUILDRS" ]; then
@@ -52,8 +62,10 @@ if [ -n "$BUILDRS" ]; then
 fi
 
 cargo build --release --workspace
+echo "[stage 4/5] preparing model files (this can take several minutes)"
 bash scripts/setup_model.sh
 
+echo "[stage 5/5] configuring MCP + service"
 python3 - "$CLAUDE_CONFIG" "$INSTALL_DIR" <<'PY'
 import json
 import sys
@@ -137,7 +149,7 @@ curl -fsS -X POST "$API_BASE/api/v1/search" \
   -d '{"query":"OpenClaw 자동회수 규칙","limit":3,"index_only":true}' \
   >/tmp/oc-memory-policy-search.json
 
-echo "Done."
+echo "[oc-memory] setup completed"
 if command -v systemctl >/dev/null 2>&1; then
   echo "- Service: systemctl status $SERVICE_NAME --no-pager"
 else
@@ -147,3 +159,8 @@ echo "- MCP config: $CLAUDE_CONFIG"
 echo "- Stats: /tmp/oc-memory-stats.json"
 echo "- Store check: /tmp/oc-memory-policy-store.json"
 echo "- Search check: /tmp/oc-memory-policy-search.json"
+echo ""
+echo "[later verification commands]"
+echo "curl -sS $API_BASE/api/v1/stats"
+echo "bash $INSTALL_DIR/scripts/oc-memory-auto-recall.sh \"OpenClaw 자동회수 규칙\" 3"
+echo "curl -sS -X POST $API_BASE/api/v1/search -H 'content-type: application/json' -d '{\"query\":\"지난번 자동회수 규칙\",\"limit\":3,\"index_only\":true}'"

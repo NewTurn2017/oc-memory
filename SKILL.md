@@ -26,6 +26,15 @@ Telegram 등으로 단일 파일 전달 후 바로 적용할 경우 아래 파�
 bash openclaw-onefile-setup.sh
 ```
 
+예상 시간: **10~25분** (네트워크/모델 다운로드 속도에 따라 변동)
+
+설치 후 나중에 확인:
+
+```bash
+curl -sS http://127.0.0.1:6342/api/v1/stats
+bash scripts/oc-memory-auto-recall.sh "OpenClaw 자동회수 규칙" 3
+```
+
 환경별 경로를 바꿔야 하면 환경변수로 지정 가능합니다.
 
 ```bash

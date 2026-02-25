@@ -18,12 +18,33 @@ Korean README: `README.md`
 
 ## OpenClaw Integration (recommended)
 
+### OpenClaw cloud installation verification (Ubuntu 24.04)
+
+Validated on a real cloud OpenClaw host:
+
+- `cargo test --workspace` passed (core/search/mcp/server)
+- `cargo build --release --workspace` passed
+- artifacts: `target/release/oc-memory-mcp` / `target/release/oc-memory-server` (about 95MB each)
+
+### 0) Cloud prerequisites (required)
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config libssl-dev clang cmake curl
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+
+rustc --version
+cargo --version
+```
+
 ### 0) One-liner setup (copy/paste)
 
 For fast bootstrap in OpenClaw environments:
 
 ```bash
-export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$HOME/.cargo/bin:$PATH" && \
+source "$HOME/.cargo/env" && \
 mkdir -p ~/.config/oc-memory && \
 cargo build --release --workspace && \
 python3 - <<'PY'
@@ -50,7 +71,7 @@ PY
 ### 1) Build binaries
 
 ```bash
-export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$HOME/.cargo/bin:$PATH"
+source "$HOME/.cargo/env"
 cargo build --release --workspace
 ```
 
@@ -138,10 +159,40 @@ Workflow file: `.github/workflows/ci.yml`
 - `check` job: build/test/clippy/fmt + `cargo audit`
 - `release-build` job: release build and artifact upload on `main`
 
+## Troubleshooting (OpenClaw cloud install)
+
+### 1) `rustc: command not found`
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+```
+
+### 2) `linker cc not found`
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config libssl-dev clang cmake
+```
+
+### 3) `lindera-ko-dic` broken dictionary URL (`invalid gzip header`, `NoSuchBucket`)
+
+CI already applies an automatic patch in `.github/workflows/ci.yml`.
+For manual local/cloud builds, you may still need this fallback:
+
+```bash
+cargo fetch
+BUILDRS=$(find ~/.cargo/registry/src -path '*/lindera-ko-dic-*/build.rs' | head -1)
+sed -i 's|https://lindera.s3.ap-northeast-1.amazonaws.com/mecab-ko-dic-2.1.1-20180720.tar.gz|https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz|' "$BUILDRS"
+```
+
+Important: this edits Cargo registry cache files and can break again after cleanup/fresh environments.
+For a permanent solution, keep a repository-level dependency patch strategy (e.g. `[patch.crates-io]` or upgrade path) under version control.
+
 ## Local Development
 
 ```bash
-export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$HOME/.cargo/bin:$PATH"
+source "$HOME/.cargo/env"
 
 cargo fmt --all
 cargo clippy --workspace -- -D warnings -A clippy::arc-with-non-send-sync

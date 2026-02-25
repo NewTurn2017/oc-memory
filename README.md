@@ -18,12 +18,33 @@ English README: `README.en.md`
 
 ## OpenClaw 통합 (권장 경로)
 
+### OpenClaw 클라우드 실설치 검증 (Ubuntu 24.04)
+
+실제 클라우드 환경(OpenClaw)에서 아래 항목을 검증했습니다.
+
+- `cargo test --workspace` 전체 통과 (core/search/mcp/server)
+- `cargo build --release --workspace` 성공
+- 산출물: `target/release/oc-memory-mcp` / `target/release/oc-memory-server` (각 약 95MB)
+
+### 0) 클라우드 선행 설치 (필수)
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config libssl-dev clang cmake curl
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+
+rustc --version
+cargo --version
+```
+
 ### 0) One-liner 설치 (복붙)
 
 OpenClaw 환경에서 빠르게 시작할 때:
 
 ```bash
-export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$HOME/.cargo/bin:$PATH" && \
+source "$HOME/.cargo/env" && \
 mkdir -p ~/.config/oc-memory && \
 cargo build --release --workspace && \
 python3 - <<'PY'
@@ -50,7 +71,7 @@ PY
 ### 1) 바이너리 빌드
 
 ```bash
-export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$HOME/.cargo/bin:$PATH"
+source "$HOME/.cargo/env"
 cargo build --release --workspace
 ```
 
@@ -138,10 +159,40 @@ recency = exp(-ln(2)/30 * days_since_access)
 - `check` 잡: build/test/clippy/fmt + `cargo audit`
 - `release-build` 잡: main 브랜치에서 release build 후 아티팩트 업로드
 
+## 트러블슈팅 (OpenClaw 클라우드 설치)
+
+### 1) `rustc: command not found`
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+```
+
+### 2) `linker cc not found`
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config libssl-dev clang cmake
+```
+
+### 3) `lindera-ko-dic` 사전 URL 깨짐 (`invalid gzip header`, `NoSuchBucket`)
+
+현재 CI에서는 자동 패치가 포함되어 있고 (`.github/workflows/ci.yml`),
+로컬/클라우드 수동 빌드에서는 아래 우회가 필요할 수 있습니다.
+
+```bash
+cargo fetch
+BUILDRS=$(find ~/.cargo/registry/src -path '*/lindera-ko-dic-*/build.rs' | head -1)
+sed -i 's|https://lindera.s3.ap-northeast-1.amazonaws.com/mecab-ko-dic-2.1.1-20180720.tar.gz|https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz|' "$BUILDRS"
+```
+
+중요: 이 방식은 Cargo registry 캐시 파일 임시 수정이라 환경 초기화/클린 빌드에서 다시 깨질 수 있습니다.
+영구 대응은 의존성 패치/고정 전략을 별도로 관리해야 합니다.
+
 ## 로컬 개발
 
 ```bash
-export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$HOME/.cargo/bin:$PATH"
+source "$HOME/.cargo/env"
 
 cargo fmt --all
 cargo clippy --workspace -- -D warnings -A clippy::arc-with-non-send-sync

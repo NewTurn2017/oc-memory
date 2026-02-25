@@ -7,7 +7,15 @@ Rust-native AI long-term memory engine. Local embeddings (BGE-m3-ko ONNX INT8) +
 
 ```bash
 # IMPORTANT: Use rustup Rust, not Homebrew
+# Linux/Cloud (recommended)
+source "$HOME/.cargo/env"
+
+# macOS fallback (if rustup shell init is not loaded)
 export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$HOME/.cargo/bin:$PATH"
+
+# Ubuntu 24.04 prerequisites (first install)
+sudo apt update
+sudo apt install -y build-essential pkg-config libssl-dev clang cmake curl
 
 # Build
 cargo build --workspace
@@ -25,8 +33,15 @@ The `lindera-ko-dic` crate's build script downloads from a defunct S3 bucket. Af
 ```bash
 cargo fetch
 BUILDRS=$(find ~/.cargo/registry/src -path '*/lindera-ko-dic-*/build.rs' | head -1)
+# Linux
+sed -i 's|https://lindera.s3.ap-northeast-1.amazonaws.com/mecab-ko-dic-2.1.1-20180720.tar.gz|https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz|' "$BUILDRS"
+
+# macOS
 sed -i '' 's|https://lindera.s3.ap-northeast-1.amazonaws.com/mecab-ko-dic-2.1.1-20180720.tar.gz|https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz|' "$BUILDRS"
 ```
+
+This is a registry-cache level workaround and can regress after environment reset.
+Prefer a repository-level permanent strategy (`[patch.crates-io]` or dependency upgrade) for long-term stability.
 
 ## Architecture
 

@@ -1,153 +1,311 @@
 # oc-memory Skill
 
-AI 비서의 장기 기억 시스템. 대화 컨텍스트, 사용자 선호도, 프로젝트 결정사항을 자동으로 저장하고 검색합니다.
+`SKILL.md` 하나만 보고 OpenClaw/Claude Code에서 oc-memory를 설치, 실행, 검증(벡터 검색 포함)할 수 있도록 작성된 원스톱 가이드입니다.
 
-## Trigger Conditions
+---
 
-다음 상황에서 자동으로 이 스킬을 활용하세요:
+## 0) 목표 상태
 
-### 검색 트리거 (memory_search)
-- **대화 시작**: 새 세션이 시작될 때 사용자 선호도와 최근 컨텍스트를 검색
-- **"저번에", "이전에", "지난번"**: 과거 대화 참조 시 관련 기억 검색
-- **"기억해?", "말했잖아"**: 사용자가 이전 대화를 참조할 때
-- **프로젝트 관련 질문**: 해당 프로젝트의 결정사항, 아키텍처 정보 검색
-- **"~에 대해 뭐 알아?"**: 특정 주제에 대한 저장된 지식 검색
+- GitHub에서 코드 클론 완료
+- `oc-memory-mcp`, `oc-memory-server` 빌드 완료
+- 모델/토크나이저 다운로드 완료
+- OpenClaw(또는 Claude Code) MCP 서버 등록 완료
+- REST 서버에서 임베딩/하이브리드 검색 활성 확인
+  - `has_embedder: true`
+  - `search_mode: "hybrid"`
+  - 저장 응답 `has_embedding: true`
+  - 검색 응답 `score_breakdown.semantic > 0`
 
-### 저장 트리거 (memory_store)
-- **사용자 선호도 표현**: "한국어로 해줘", "코드 리뷰는 영어로" → `preference` 타입
-- **아키텍처/기술 결정**: "Rust로 하자", "BGE-m3-ko 쓰자" → `decision` 타입
-- **중요한 사실 전달**: "서버는 Ubuntu 4CPU/8GB", "포트는 6342" → `fact` 타입
-- **버그 해결**: 디버깅 과정과 해결책 → `bugfix` 타입
-- **새로운 발견**: 예상치 못한 동작, 라이브러리 quirks → `discovery` 타입
-- **"기억해 줘", "저장해"**: 명시적 저장 요청
+---
 
-## MCP Tools
-
-### memory_search
-```json
-{
-  "query": "검색할 내용 (자연어)",
-  "limit": 5,
-  "index_only": true
-}
-```
-- **index_only=true** (기본): 제목/메타데이터만 반환 → 토큰 90% 절약
-- 필요한 항목만 `memory_get`으로 전체 내용 조회
-
-### memory_store
-```json
-{
-  "content": "저장할 내용",
-  "title": "제목 (간결하게)",
-  "memory_type": "observation|decision|preference|fact|task|session|bugfix|discovery",
-  "priority": "low|medium|high",
-  "tags": ["tag1", "tag2"]
-}
-```
-
-### memory_get
-```json
-{
-  "id": "메모리 ID"
-}
-```
-- index_only 검색 후 필요한 항목의 전체 내용 조회
-
-### memory_delete
-```json
-{
-  "id": "삭제할 메모리 ID"
-}
-```
-
-### memory_stats
-```json
-{}
-```
-- 총 메모리 수, 인덱스 상태, 검색 모드 확인
-
-## Progressive Disclosure Pattern
-
-토큰 절약을 위해 항상 다음 패턴을 따르세요:
-
-```
-1. memory_search(query, index_only=true, limit=5)
-   → 제목 + 메타데이터만 반환 (~50 tokens/item)
-
-2. 관련 있는 항목만 memory_get(id)으로 전체 조회
-   → 필요한 컨텐츠만 로드 (~200-500 tokens/item)
-
-3. 불필요한 항목은 조회하지 않음
-   → 90%+ 토큰 절약
-```
-
-## Memory Type 가이드
-
-| 타입 | 언제 사용 | 우선순위 기본값 |
-|------|----------|---------------|
-| `preference` | 사용자 작업 스타일, 언어, 도구 선호 | high |
-| `decision` | 아키텍처, 기술 스택, 설계 결정 | high |
-| `fact` | 환경 정보, 서버 스펙, 계정 정보 | medium |
-| `observation` | 일반적인 관찰, 메모 | medium |
-| `bugfix` | 버그 원인과 해결책 | medium |
-| `discovery` | 라이브러리 quirks, 예상 밖 동작 | medium |
-| `task` | 진행 중인 작업, TODO | low |
-| `session` | 세션 요약 | low |
-
-## 자동 행동 예시
-
-### 세션 시작 시
-```
-→ memory_search("사용자 선호도", limit=3, index_only=true)
-→ memory_search("최근 프로젝트 컨텍스트", limit=5, index_only=true)
-→ 필요한 항목만 memory_get()
-```
-
-### 사용자가 결정을 내릴 때
-```
-사용자: "Rust로 통합하고 싶어"
-→ memory_store(
-    content="사용자가 프로젝트를 Rust로 통합하기로 결정. 이유: 성능, 안전성, 로컬 실행 요구사항.",
-    title="Rust 통합 결정",
-    memory_type="decision",
-    priority="high",
-    tags=["rust", "architecture"]
-  )
-```
-
-### 과거 참조 시
-```
-사용자: "저번에 어떤 모델 쓰기로 했지?"
-→ memory_search("모델 결정", limit=5, index_only=true)
-→ 관련 항목 memory_get()
-→ "BGE-m3-ko INT8 양자화 모델을 사용하기로 결정하셨습니다."
-```
-
-## Setup
+## 1) 클라우드 선행 설치 (Ubuntu 24.04)
 
 ```bash
-# 1. 모델 다운로드
-bash scripts/setup_model.sh
+sudo apt update
+sudo apt install -y build-essential pkg-config libssl-dev clang cmake curl python3 python3-venv
 
-# 2. 빌드
-cargo build --release -p oc-mcp-server
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
 
-# 3. OpenClaw/Claude Code 설정
-# ~/.claude/config.json 또는 해당 설정 파일에 추가:
-{
-  "mcpServers": {
-    "memory": {
-      "command": "/path/to/oc-memory-mcp",
-      "args": []
-    }
-  }
-}
+rustc --version
+cargo --version
+python3 --version
 ```
 
-## Constraints
+---
 
-- **토큰 절약 최우선**: 항상 `index_only=true`로 먼저 검색
-- **중복 저장 금지**: 같은 정보를 반복 저장하지 않음 (먼저 검색)
-- **자연스럽게**: 메모리 사용을 사용자에게 과도하게 알리지 않음
-- **선택적 저장**: 모든 대화를 저장하지 않음 — 가치 있는 정보만
-- **한국어 우선**: 한국어 컨텐츠가 주이므로 한국어로 저장
+## 2) GitHub 클론
+
+```bash
+git clone https://github.com/NewTurn2017/oc-memory.git
+cd oc-memory
+```
+
+---
+
+## 3) lindera-ko-dic URL 임시 패치 (필요 시)
+
+`cargo clean`/fresh clone에서 `NoSuchBucket`, `invalid gzip header`가 나면 먼저 적용합니다.
+
+```bash
+cargo fetch
+BUILDRS=$(find ~/.cargo/registry/src -path '*/lindera-ko-dic-*/build.rs' | head -1)
+
+# Linux
+sed -i 's|https://lindera.s3.ap-northeast-1.amazonaws.com/mecab-ko-dic-2.1.1-20180720.tar.gz|https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz|' "$BUILDRS"
+
+# macOS
+# sed -i '' 's|https://lindera.s3.ap-northeast-1.amazonaws.com/mecab-ko-dic-2.1.1-20180720.tar.gz|https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz|' "$BUILDRS"
+```
+
+중요: 이 방법은 Cargo registry 캐시 수정이라 임시 우회입니다. 장기적으로는 레포 레벨 패치(`patch.crates-io`) 또는 의존성 업그레이드가 필요합니다.
+
+---
+
+## 4) 빌드/테스트
+
+```bash
+source "$HOME/.cargo/env"
+
+cargo test --workspace
+cargo build --release --workspace
+
+ls -lh target/release/oc-memory-mcp target/release/oc-memory-server
+```
+
+---
+
+## 5) 모델/토크나이저 다운로드 (필수)
+
+권장 경로(venv + prebuilt ONNX):
+
+```bash
+bash scripts/setup_model.sh
+```
+
+대안:
+
+```bash
+# prebuilt ONNX 직접 다운로드
+python3 scripts/download_model.py
+
+# 로컬 변환/양자화 경로
+python3 scripts/download_model.py --convert
+```
+
+확인:
+
+```bash
+ls -lh ~/.local/share/oc-memory/models
+# bge-m3-ko-int8.onnx
+# tokenizer.json
+```
+
+---
+
+## 6) MCP 등록 (OpenClaw/Claude Code)
+
+`~/.claude/config.json`에 `mcpServers.memory` 등록:
+
+```bash
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+cfg = Path.home() / ".claude" / "config.json"
+cfg.parent.mkdir(parents=True, exist_ok=True)
+data = {}
+if cfg.exists():
+    try:
+        data = json.loads(cfg.read_text(encoding="utf-8"))
+    except Exception:
+        data = {}
+
+data.setdefault("mcpServers", {})["memory"] = {
+    "command": str(Path.cwd() / "target/release/oc-memory-mcp"),
+    "args": []
+}
+
+cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+print(f"Updated: {cfg}")
+PY
+```
+
+---
+
+## 7) REST 서버 실행 (벡터 검증용)
+
+```bash
+./target/release/oc-memory-server
+```
+
+다른 터미널에서 검증:
+
+```bash
+curl -sS http://127.0.0.1:6342/health
+curl -sS http://127.0.0.1:6342/api/v1/stats
+```
+
+기대값: `has_embedder: true`, `search_mode: "hybrid"`
+
+---
+
+## 8) 벡터 검색 실제 검증
+
+### 8-1. 메모리 저장
+
+```bash
+curl -sS -X POST http://127.0.0.1:6342/api/v1/memories \
+  -H 'content-type: application/json' \
+  -d '{"title":"벡터테스트","content":"광안리 해변 산책 일정","memory_type":"observation","priority":"high","tags":["travel","korea"]}'
+```
+
+기대값: `has_embedding: true`
+
+### 8-2. 검색
+
+```bash
+curl -sS -X POST http://127.0.0.1:6342/api/v1/search \
+  -H 'content-type: application/json' \
+  -d '{"query":"해변 산책 일정","limit":3,"index_only":true}'
+```
+
+기대값:
+
+- `data[].score_breakdown.semantic` 값이 0보다 큼
+- 결과가 하이브리드 점수 기준으로 정렬됨
+
+### 8-3. 통계 재확인
+
+```bash
+curl -sS http://127.0.0.1:6342/api/v1/stats
+```
+
+기대값: `total_memories`/`indexed_count` 증가
+
+---
+
+## 9) 자동 회수(E2E) 설정
+
+새 세션에서 "지난번/이전/방금/뭐였지" 류 질문이 들어올 때 먼저 oc-memory를 조회하도록 운영할 수 있습니다.
+
+### 9-1. 자동 회수 스크립트
+
+```bash
+bash scripts/oc-memory-auto-recall.sh "검증키" 3
+```
+
+출력 형식:
+
+```text
+[1] 제목 :: 요약문 (score=...)
+[2] 제목 :: 요약문 (score=...)
+```
+
+### 9-2. 검증 데이터 저장
+
+```bash
+curl -sS -X POST http://127.0.0.1:6342/api/v1/memories \
+  -H 'content-type: application/json' \
+  -d '{"title":"자동회수 설정 완료","content":"자동 회수 방식: 새 세션에서 prior work 질문 시 oc-memory를 먼저 조회한 뒤 답변한다. 검증키 auto-recall-4412","memory_type":"decision","priority":"high"}'
+```
+
+확인:
+
+```bash
+bash scripts/oc-memory-auto-recall.sh "auto-recall-4412" 3
+```
+
+### 9-3. AGENTS 정책 예시
+
+OpenClaw 워크스페이스의 `AGENTS.md`에 아래 규칙을 두면 자동 회수 운영이 안정적입니다.
+
+```md
+- 세션 시작 시 oc-memory에서 최근 컨텍스트를 먼저 조회한다.
+- "지난번/이전/방금/뭐였지/기억/다시 알려줘" 계열 질문은 파일 탐색 전에 oc-memory 검색을 먼저 수행한다.
+- oc-memory 조회 실패 시에만 grep/파일 탐색으로 보조한다.
+```
+
+---
+
+## 10) systemd 서비스 전환 예시 (운영)
+
+`/etc/systemd/system/oc-memory.service`:
+
+```ini
+[Unit]
+Description=oc-memory REST Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/oc-memory
+ExecStart=/root/oc-memory/target/release/oc-memory-server
+Restart=always
+RestartSec=5
+Environment=RUST_LOG=info
+Environment=LD_LIBRARY_PATH=/root/oc-memory/.venv-model/lib/python3.12/site-packages/onnxruntime/capi
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable oc-memory.service
+sudo systemctl restart oc-memory.service
+sudo systemctl status oc-memory.service --no-pager
+```
+
+---
+
+## 11) MCP 도구 요약
+
+- `memory_search`: 하이브리드 검색
+- `memory_store`: 메모리 저장
+- `memory_get`: ID 기반 조회
+- `memory_delete`: 삭제
+- `memory_stats`: 상태 확인
+
+---
+
+## 12) 트리거 가이드 (에이전트 행동)
+
+### 검색 트리거
+
+- 대화 시작 시 컨텍스트 복원
+- "저번에/이전에/지난번" 참조
+- 프로젝트 결정사항/구조 질문
+
+### 저장 트리거
+
+- 선호도: `preference`
+- 기술/아키텍처 결정: `decision`
+- 환경 사실: `fact`
+- 버그 해결: `bugfix`
+
+### 토큰 절약 패턴
+
+1. `memory_search(index_only=true)`
+2. 필요한 항목만 `memory_get`
+3. 불필요한 전체 조회 생략
+
+---
+
+## 13) 자주 발생하는 장애
+
+1. `rustc: command not found`
+   - `rustup` 설치 후 `source "$HOME/.cargo/env"`
+
+2. `linker cc not found`
+   - `build-essential pkg-config libssl-dev clang cmake` 설치
+
+3. `lindera-ko-dic` URL 에러
+   - 3번 단계 임시 패치 적용
+
+4. `externally-managed-environment` (PEP668)
+   - 시스템 `pip3` 대신 `.venv-model` 사용 (`setup_model.sh`)
+
+5. `libonnxruntime.so` 로딩 실패
+   - systemd `LD_LIBRARY_PATH` 확인 및 재시작

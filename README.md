@@ -116,6 +116,16 @@ cargo build --release --workspace
 # 4) "이 결정 저장해줘" -> memory_store(decision/high)
 ```
 
+## 자동 회수(E2E)
+
+새 세션에서 prior-context 질문을 바로 회수하려면:
+
+```bash
+bash scripts/oc-memory-auto-recall.sh "최근 작업" 3
+```
+
+`AGENTS.md` 운영 규칙 예시와 검증 절차는 `SKILL.md`의 자동 회수 섹션을 사용하세요.
+
 ## 제공 MCP 도구
 
 - `memory_search`: 하이브리드 검색 (vector + BM25)
@@ -189,6 +199,40 @@ sed -i 's|https://lindera.s3.ap-northeast-1.amazonaws.com/mecab-ko-dic-2.1.1-201
 중요: 이 방식은 Cargo registry 캐시 파일 임시 수정이라 환경 초기화/클린 빌드에서 다시 깨질 수 있습니다.
 영구 대응은 의존성 패치/고정 전략을 별도로 관리해야 합니다.
 
+### 4) systemd 서비스 전환 예시 (observer -> Rust server)
+
+`/etc/systemd/system/oc-memory.service`:
+
+```ini
+[Unit]
+Description=oc-memory REST Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/oc-memory
+ExecStart=/root/oc-memory/target/release/oc-memory-server
+Restart=always
+RestartSec=5
+Environment=RUST_LOG=info
+Environment=LD_LIBRARY_PATH=/root/oc-memory/.venv-model/lib/python3.12/site-packages/onnxruntime/capi
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable oc-memory.service
+sudo systemctl restart oc-memory.service
+curl -sS http://127.0.0.1:6342/api/v1/stats
+```
+
+검증 기준:
+- `has_embedder: true`
+- `search_mode: "hybrid"`
+
 ## 로컬 개발
 
 ```bash
@@ -203,9 +247,15 @@ cargo build --release --workspace
 모델 다운로드:
 
 ```bash
+# 권장 (venv + prebuilt ONNX 다운로드)
 bash scripts/setup_model.sh
+
 # 또는
+# prebuilt ONNX 직접 다운로드
 python3 scripts/download_model.py
+
+# 선택: 로컬 변환/양자화
+python3 scripts/download_model.py --convert
 ```
 
 ## 문서

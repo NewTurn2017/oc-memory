@@ -116,6 +116,16 @@ This is the exact flow that shows the "skill-install-only" improvement.
 # 4) Ask: "Store this as a decision" -> memory_store(decision/high)
 ```
 
+## Auto Recall (E2E)
+
+To retrieve prior context automatically in new sessions:
+
+```bash
+bash scripts/oc-memory-auto-recall.sh "recent work" 3
+```
+
+Use the Auto Recall section in `SKILL.md` for AGENTS policy examples and full verification flow.
+
 ## MCP Tools
 
 - `memory_search`: hybrid retrieval (vector + BM25)
@@ -189,6 +199,40 @@ sed -i 's|https://lindera.s3.ap-northeast-1.amazonaws.com/mecab-ko-dic-2.1.1-201
 Important: this edits Cargo registry cache files and can break again after cleanup/fresh environments.
 For a permanent solution, keep a repository-level dependency patch strategy (e.g. `[patch.crates-io]` or upgrade path) under version control.
 
+### 4) systemd migration example (observer -> Rust server)
+
+`/etc/systemd/system/oc-memory.service`:
+
+```ini
+[Unit]
+Description=oc-memory REST Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/oc-memory
+ExecStart=/root/oc-memory/target/release/oc-memory-server
+Restart=always
+RestartSec=5
+Environment=RUST_LOG=info
+Environment=LD_LIBRARY_PATH=/root/oc-memory/.venv-model/lib/python3.12/site-packages/onnxruntime/capi
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable oc-memory.service
+sudo systemctl restart oc-memory.service
+curl -sS http://127.0.0.1:6342/api/v1/stats
+```
+
+Verification target:
+- `has_embedder: true`
+- `search_mode: "hybrid"`
+
 ## Local Development
 
 ```bash
@@ -203,9 +247,15 @@ cargo build --release --workspace
 Model setup:
 
 ```bash
+# recommended (venv + prebuilt ONNX download)
 bash scripts/setup_model.sh
+
 # or
+# direct prebuilt ONNX download
 python3 scripts/download_model.py
+
+# optional: local export/quantization path
+python3 scripts/download_model.py --convert
 ```
 
 ## Documentation

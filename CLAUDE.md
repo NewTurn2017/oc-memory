@@ -103,6 +103,8 @@ recency = exp(-ln(2)/30 × days_since_access)  // 30-day half-life
 python3 scripts/download_model.py
 # Or use the shell wrapper
 bash scripts/setup_model.sh
+# Optional: local export+quantization path
+python3 scripts/download_model.py --convert
 ```
 Model files go in `models/` (gitignored).
 

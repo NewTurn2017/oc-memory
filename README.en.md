@@ -124,7 +124,7 @@ To retrieve prior context automatically in new sessions:
 bash scripts/oc-memory-auto-recall.sh "recent work" 3
 ```
 
-Use the Auto Recall section in `SKILL.md` for AGENTS policy examples and full verification flow.
+Use the Auto Recall section in `SKILL.md` for OpenClaw always-on memory policy and full verification flow.
 
 ## MCP Tools
 

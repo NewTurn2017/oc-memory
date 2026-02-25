@@ -124,7 +124,7 @@ cargo build --release --workspace
 bash scripts/oc-memory-auto-recall.sh "최근 작업" 3
 ```
 
-`AGENTS.md` 운영 규칙 예시와 검증 절차는 `SKILL.md`의 자동 회수 섹션을 사용하세요.
+OpenClaw 전용 메모리(Always-on) 규칙 저장/검증 절차는 `SKILL.md`의 자동 회수 섹션을 사용하세요.
 
 ## 제공 MCP 도구
 

@@ -1,0 +1,15 @@
+[package]
+name = "oc-embeddings"
+description = "BGE-m3-ko ONNX INT8 embedding engine for Korean text"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ort = { workspace = true }
+oc-core = { path = "../core" }
+ndarray = { workspace = true }
+tokenizers = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="420" viewBox="0 0 1080 420" role="img" aria-label="oc-memory demo flow">
+  <defs>
+    <style>
+      .bg { fill: #0f172a; }
+      .card { fill: #111827; stroke: #334155; stroke-width: 2; rx: 14; }
+      .title { fill: #e2e8f0; font: 700 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial; }
+      .text { fill: #cbd5e1; font: 500 17px ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial; }
+      .strong { fill: #93c5fd; font: 700 17px ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial; }
+      .arrow { stroke: #475569; stroke-width: 2; marker-end: url(#arrowhead); }
+    </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#475569" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1080" height="420" />
+  <text class="title" x="36" y="54">oc-memory: Skill-first Memory Upgrade for OpenClaw</text>
+
+  <rect class="card" x="36" y="90" width="236" height="260" />
+  <text class="strong" x="56" y="126">1) Session Starts</text>
+  <text class="text" x="56" y="154">Skill triggers</text>
+  <text class="text" x="56" y="180">context lookup</text>
+  <text class="text" x="56" y="206">using memory_search</text>
+  <text class="text" x="56" y="232">(index_only=true)</text>
+
+  <rect class="card" x="298" y="90" width="236" height="260" />
+  <text class="strong" x="318" y="126">2) Ask Past Decision</text>
+  <text class="text" x="318" y="154">Assistant returns</text>
+  <text class="text" x="318" y="180">lightweight index</text>
+  <text class="text" x="318" y="206">then fetches only</text>
+  <text class="text" x="318" y="232">relevant IDs via get</text>
+
+  <rect class="card" x="560" y="90" width="236" height="260" />
+  <text class="strong" x="580" y="126">3) New Decision</text>
+  <text class="text" x="580" y="154">"Store this decision"</text>
+  <text class="text" x="580" y="180">memory_store</text>
+  <text class="text" x="580" y="206">type=decision</text>
+  <text class="text" x="580" y="232">priority=high</text>
+
+  <rect class="card" x="822" y="90" width="222" height="260" />
+  <text class="strong" x="842" y="126">4) Next Session</text>
+  <text class="text" x="842" y="154">Decision is found</text>
+  <text class="text" x="842" y="180">automatically</text>
+  <text class="text" x="842" y="206">better continuity</text>
+  <text class="text" x="842" y="232">lower token usage</text>
+
+  <line class="arrow" x1="272" y1="220" x2="292" y2="220" />
+  <line class="arrow" x1="534" y1="220" x2="554" y2="220" />
+  <line class="arrow" x1="796" y1="220" x2="816" y2="220" />
+</svg>

@@ -1,0 +1,9 @@
+/target
+*.onnx
+*.bin
+models/*.onnx
+models/*.bin
+models/*.json
+!models/.gitkeep
+.env
+.firecrawl/

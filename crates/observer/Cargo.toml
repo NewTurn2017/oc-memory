@@ -1,0 +1,18 @@
+[package]
+name = "oc-observer"
+description = "File system observer for automatic memory ingestion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+oc-core = { workspace = true }
+oc-embeddings = { workspace = true }
+oc-search = { workspace = true }
+notify = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }

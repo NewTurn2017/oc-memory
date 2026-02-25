@@ -1,0 +1,49 @@
+# oc-memory Configuration
+# Copy to ~/.config/oc-memory/config.toml and customize.
+
+[storage]
+# Data directory for SQLite DB, vector index, and BM25 index
+data_dir = "~/.local/share/oc-memory"
+# Maximum number of hot (frequently accessed) memories
+max_hot_memories = 10000
+# Hot memory TTL in days
+hot_ttl_days = 90
+
+[embedding]
+# Path to ONNX model file (INT8 quantized)
+model_path = "~/.local/share/oc-memory/models/bge-m3-ko-int8.onnx"
+# Path to tokenizer.json
+tokenizer_path = "~/.local/share/oc-memory/models/tokenizer.json"
+# Vector dimensions (1024 for BGE-m3-ko)
+dimensions = 1024
+# Max sequence length for tokenizer
+max_length = 8192
+# Number of threads for ONNX Runtime inference
+num_threads = 4
+
+[search]
+# Scoring weights (must sum to ~1.0)
+semantic_weight = 0.6      # Vector cosine similarity
+keyword_weight = 0.15      # BM25 keyword match
+recency_weight = 0.15      # Time decay (recent = higher)
+importance_weight = 0.10   # Priority boost
+# Recency half-life: after this many days, recency score = 0.5
+recency_half_life_days = 30.0
+# Default number of search results
+default_limit = 10
+# HNSW ef_search parameter (future use)
+ef_search = 100
+
+[observer]
+# Directories to watch for file changes (auto-ingest)
+watch_dirs = []
+# Watch subdirectories recursively
+recursive = true
+# File extensions to monitor
+extensions = ["md", "markdown", "txt"]
+
+[server]
+# REST API binding address
+host = "127.0.0.1"
+# REST API port
+port = 6342

@@ -1,0 +1,78 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/embeddings",
+    "crates/search",
+    "crates/observer",
+    "crates/mcp-server",
+    "crates/server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["jaehyunjang"]
+license = "MIT"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Embedding (ONNX Runtime)
+ort = { version = "2.0.0-rc.11", features = ["load-dynamic"] }
+ndarray = "0.16"
+tokenizers = "0.21"
+
+# Vector search
+usearch = "2.24"
+
+# Full-text search
+tantivy = "0.22"
+
+# File watching
+notify = "7"
+
+# HTTP server
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# MCP protocol
+# rmcp = "0.1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Config
+toml = "0.8"
+
+# Internal crates
+oc-core = { path = "crates/core" }
+oc-embeddings = { path = "crates/embeddings" }
+oc-search = { path = "crates/search" }
+oc-observer = { path = "crates/observer" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+strip = true

@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check:
+    name: Check & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Patch lindera-ko-dic S3 URL
+        run: |
+          # lindera-ko-dic 0.40.2 downloads from a defunct S3 bucket.
+          # Patch the build script to use the Bitbucket mirror instead.
+          cargo fetch
+          BUILDRS=$(find ~/.cargo/registry/src -path '*/lindera-ko-dic-*/build.rs' 2>/dev/null | head -1)
+          if [ -n "$BUILDRS" ]; then
+            sed -i 's|https://lindera.s3.ap-northeast-1.amazonaws.com/mecab-ko-dic-2.1.1-20180720.tar.gz|https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz|' "$BUILDRS"
+            echo "Patched lindera-ko-dic build.rs: $BUILDRS"
+          else
+            echo "lindera-ko-dic build.rs not found (may already be cached)"
+          fi
+
+      - name: Build workspace
+        run: cargo build --workspace
+
+      - name: Run tests
+        run: cargo test --workspace
+
+      - name: Clippy
+        run: cargo clippy --workspace -- -D warnings -A clippy::arc-with-non-send-sync
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Security audit
+        run: cargo audit
+
+  release-build:
+    name: Release Build (Ubuntu)
+    runs-on: ubuntu-latest
+    needs: check
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-
+
+      - name: Patch lindera-ko-dic S3 URL
+        run: |
+          cargo fetch
+          BUILDRS=$(find ~/.cargo/registry/src -path '*/lindera-ko-dic-*/build.rs' 2>/dev/null | head -1)
+          if [ -n "$BUILDRS" ]; then
+            sed -i 's|https://lindera.s3.ap-northeast-1.amazonaws.com/mecab-ko-dic-2.1.1-20180720.tar.gz|https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz|' "$BUILDRS"
+          fi
+
+      - name: Build release
+        run: cargo build --release --workspace
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: oc-memory-linux-x86_64
+          path: |
+            target/release/oc-memory-mcp
+            target/release/oc-memory-server
+          retention-days: 30

@@ -1,0 +1,26 @@
+[package]
+name = "oc-search"
+description = "Hybrid vector (HNSW) + BM25 search with RRF fusion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+oc-core = { workspace = true }
+oc-embeddings = { workspace = true }
+tantivy = { workspace = true }
+ndarray = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# Korean morphological analysis
+lindera-tantivy = { version = "0.40", features = ["ko-dic"] }
+lindera = { version = "0.40", features = ["ko-dic"] }
+
+# HNSW vector search
+usearch = { workspace = true }

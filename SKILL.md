@@ -14,7 +14,29 @@
   - `has_embedder: true`
   - `search_mode: "hybrid"`
   - 저장 응답 `has_embedding: true`
-  - 검색 응답 `score_breakdown.semantic > 0`
+- 검색 응답 `score_breakdown.semantic > 0`
+
+---
+
+## 빠른 적용 (원파일)
+
+Telegram 등으로 단일 파일 전달 후 바로 적용할 경우 아래 파일 하나만 실행하세요.
+
+```bash
+bash openclaw-onefile-setup.sh
+```
+
+환경별 경로를 바꿔야 하면 환경변수로 지정 가능합니다.
+
+```bash
+INSTALL_DIR=/root/oc-memory API_BASE=http://127.0.0.1:6342 bash openclaw-onefile-setup.sh
+```
+
+플랫폼 동작:
+
+- Linux(Ubuntu): apt + systemd 자동 설정
+- macOS: brew 패키지 보조 설치 후 서버를 `nohup`으로 실행
+- Windows(Git Bash/WSL): git/curl/rust/python이 이미 설치되어 있으면 나머지 단계를 자동 진행하고 서버는 `nohup` 경로로 실행
 
 ---
 
@@ -216,14 +238,22 @@ curl -sS -X POST http://127.0.0.1:6342/api/v1/memories \
 bash scripts/oc-memory-auto-recall.sh "auto-recall-4412" 3
 ```
 
-### 9-3. AGENTS 정책 예시
+### 9-3. OpenClaw 전용 메모리(Always-on)로 규칙 고정
 
-OpenClaw 워크스페이스의 `AGENTS.md`에 아래 규칙을 두면 자동 회수 운영이 안정적입니다.
+`AGENTS.md` 대신 OpenClaw 전용 메모리에 자동 회수 규칙을 저장해 세션 시작마다 우선 참조하도록 운영합니다.
 
-```md
-- 세션 시작 시 oc-memory에서 최근 컨텍스트를 먼저 조회한다.
-- "지난번/이전/방금/뭐였지/기억/다시 알려줘" 계열 질문은 파일 탐색 전에 oc-memory 검색을 먼저 수행한다.
-- oc-memory 조회 실패 시에만 grep/파일 탐색으로 보조한다.
+저장 예시(REST):
+
+```bash
+curl -sS -X POST http://127.0.0.1:6342/api/v1/memories \
+  -H 'content-type: application/json' \
+  -d '{"title":"OpenClaw 자동회수 규칙","content":"세션 시작 시 oc-memory를 먼저 조회한다. prior-context 질문(지난번/이전/방금/뭐였지/기억/다시 알려줘)은 파일 탐색 전에 memory_search(index_only=true)를 우선 수행하고, 실패 시에만 grep으로 보조한다.","memory_type":"decision","priority":"high","tags":["openclaw","auto-recall","policy"]}'
+```
+
+세션 시작 조회 예시:
+
+```bash
+bash scripts/oc-memory-auto-recall.sh "OpenClaw 자동회수 규칙" 3
 ```
 
 ---
